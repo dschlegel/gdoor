@@ -37,6 +37,11 @@ namespace GDOOR_RX {
     hw_timer_t * timer_bit_received = NULL;
     hw_timer_t * timer_bitstream_received = NULL;
 
+    // Starting a running or stopping a stopped timer fails and logs an error from within the ISR (IDF5),
+    // which blocks long enough to lose pulses. So keep track of the timer state ourselves.
+    volatile bool timer_bit_running = false;
+    volatile bool timer_bitstream_running = false;
+
     uint8_t pin_rx = 0;
     
     /*
@@ -48,8 +53,14 @@ namespace GDOOR_RX {
         isr_cnt = isr_cnt + 1;
         timerWrite(timer_bit_received, 0); //reset timer
         timerWrite(timer_bitstream_received, 0); //reset timer
-        timerStart(timer_bit_received); //Start timer to detect bit is over
-        timerStart(timer_bitstream_received); //Start timer to detect bistream is over
+        if (!timer_bit_running) {
+            timer_bit_running = true;
+            timerStart(timer_bit_received); //Start timer to detect bit is over
+        }
+        if (!timer_bitstream_running) {
+            timer_bitstream_running = true;
+            timerStart(timer_bitstream_received); //Start timer to detect bistream is over
+        }
     }
 
     /*
@@ -65,6 +76,7 @@ namespace GDOOR_RX {
         isr_cnt = 0;
         bitcounter = bitcounter + 1;
         timerStop(timer_bit_received);
+        timer_bit_running = false;
     }
 
     /*
@@ -74,7 +86,11 @@ namespace GDOOR_RX {
         rx_state &= (uint16_t)~FLAG_RX_ACTIVE;
         rx_state |= (uint16_t)FLAG_BITSTREAM_RECEIVED;
         timerStop(timer_bitstream_received);
-        timerStop(timer_bit_received);
+        timer_bitstream_running = false;
+        if (timer_bit_running) {
+            timerStop(timer_bit_received);
+            timer_bit_running = false;
+        }
     }
 
     /*
@@ -134,14 +150,16 @@ namespace GDOOR_RX {
         // after 6*STARTBIT_MIN_LEN 120kHz Cycles (= 3 * STARTBIT_MIN_LEN 60kHz Cycles)
         timerAlarm(timer_bitstream_received, 6*STARTBIT_MIN_LEN, true, 0);
 
-        // Enable External RX Interrupt
-        enable();
-
-        // Set Timers to default values, just to be sure
+        // Set Timers to default values, timerBegin() already started them
         timerWrite(timer_bit_received, 0); //reset timer
         timerWrite(timer_bitstream_received, 0); //reset timer
         timerStop(timer_bitstream_received);
         timerStop(timer_bit_received);
+        timer_bit_running = false;
+        timer_bitstream_running = false;
+
+        // Enable External RX Interrupt, after timers are stopped so the ISR can start them
+        enable();
     }
 
     /*
