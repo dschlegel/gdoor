@@ -53,6 +53,7 @@ Every received message is also logged, so the log shows the values you need for 
 ```yaml
 # On for auto_off (default 1s) when a matching message is received.
 # Any combination of busdata, action, source, destination, parameters.
+# busdata (incl. checksum) can also be a list, it then matches any of them.
 binary_sensor:
   - platform: gdoor
     name: "Door bell"

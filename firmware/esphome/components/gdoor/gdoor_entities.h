@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <algorithm>
+
 #include "esphome/core/defines.h"
 #include "gdoor.h"
 
@@ -39,7 +41,7 @@ namespace gdoor {
  */
 class GDoorBinarySensor : public binary_sensor::BinarySensor, public Component, public Parented<GDoorComponent> {
  public:
-  void set_busdata(const std::string &value) { this->busdata_ = value; }
+  void add_busdata(const std::string &value) { this->busdata_.push_back(value); }
   void set_action(const std::string &value) { this->action_ = value; }
   void set_source(const std::string &value) { this->source_ = value; }
   void set_destination(const std::string &value) { this->destination_ = value; }
@@ -58,14 +60,15 @@ class GDoorBinarySensor : public binary_sensor::BinarySensor, public Component, 
 
  protected:
   bool matches_(const GDoorMessage &message) const {
-    return (this->busdata_.empty() || this->busdata_ == message.busdata) &&
+    return (this->busdata_.empty() ||
+            std::find(this->busdata_.begin(), this->busdata_.end(), message.busdata) != this->busdata_.end()) &&
            (this->action_.empty() || this->action_ == message.action) &&
            (this->source_.empty() || this->source_ == message.source) &&
            (this->destination_.empty() || this->destination_ == message.destination) &&
            (this->parameters_.empty() || this->parameters_ == message.parameters);
   }
 
-  std::string busdata_;
+  std::vector<std::string> busdata_;  // Matches any of them
   std::string action_;
   std::string source_;
   std::string destination_;

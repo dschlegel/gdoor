@@ -21,8 +21,8 @@ CONFIG_SCHEMA = cv.All(
     .extend(GDOOR_CHILD_SCHEMA)
     .extend(
         {
-            # Received busdata incl. checksum
-            cv.Optional(CONF_BUSDATA): hex_bytes(),
+            # Received busdata incl. checksum, matches any of the list
+            cv.Optional(CONF_BUSDATA): cv.ensure_list(hex_bytes()),
             cv.Optional(CONF_ACTION): cv.All(cv.string_strict, cv.Upper),
             cv.Optional(CONF_SOURCE): hex_bytes(length=3),
             cv.Optional(CONF_DESTINATION): hex_bytes(length=3),
@@ -42,7 +42,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_GDOOR_ID])
 
-    for key in FILTERS:
+    for busdata in config.get(CONF_BUSDATA, []):
+        cg.add(var.add_busdata(busdata))
+    for key in FILTERS[1:]:
         if key in config:
             cg.add(getattr(var, f"set_{key}")(config[key]))
     cg.add(var.set_auto_off(config[CONF_AUTO_OFF]))
