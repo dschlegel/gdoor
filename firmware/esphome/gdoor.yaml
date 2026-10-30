@@ -1,0 +1,73 @@
+# Example ESPHome configuration for the GDoor v3.1 hardware.
+# Put your WiFi credentials into secrets.yaml (wifi_ssid, wifi_password).
+
+esphome:
+  name: gdoor
+  friendly_name: GDoor
+
+esp32:
+  board: wemos_d1_mini32
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/gdoor-org/gdoor
+      path: firmware/esphome/components
+    components: [gdoor]
+
+logger:
+
+api:
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+
+captive_portal:
+
+# RX comparator threshold on v3.1 hardware with IO22 input
+output:
+  - platform: esp32_dac
+    pin: GPIO26
+    id: gdoor_rx_threshold
+
+gdoor:
+  rx_pin: GPIO22         # v3.1 adjustable: GPIO22, v3.1: GPIO21, v3.0 bugfix: GPIO12, v3.0: GPIO32
+  tx_pin: GPIO25
+  tx_enable_pin: GPIO27
+  rx_threshold:          # Only for GPIO22
+    output: gdoor_rx_threshold
+    voltage: 1.45V       # Low: 1.3V, Med: 1.45V, High: 1.65V
+  on_message:
+    - logger.log:
+        format: "Bus message: %s %s from %s"
+        args: [x.action.c_str(), x.parameters.c_str(), x.source.c_str()]
+
+# Shows every received message, to find out the values for the entities below
+text_sensor:
+  - platform: gdoor
+    name: "Last bus message"
+    field: busdata
+  - platform: gdoor
+    name: "Last bus action"
+    field: action
+
+# Adapt source/parameters to your door station, see the log or the text sensors above
+binary_sensor:
+  - platform: gdoor
+    name: "Door bell"
+    action: BUTTON_RING
+    # source: "A286FD"
+    # parameters: "0360"
+
+# Adapt busdata to your system, it is the same hex string you sent via MQTT before
+# button:
+#   - platform: gdoor
+#     name: "Open door"
+#     busdata: "..."
