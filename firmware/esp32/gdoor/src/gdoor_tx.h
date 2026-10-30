@@ -20,10 +20,11 @@
 #include <Arduino.h>
 
 namespace GDOOR_TX { //Namespace as we can only use it once
-    extern uint16_t tx_state;
+    extern volatile uint16_t tx_state;
     void send(uint8_t *words, uint16_t len);
     void send(String str);
     void setup(uint8_t txpin, uint8_t txenpin);
+    void loop();
 };
 
 #endif

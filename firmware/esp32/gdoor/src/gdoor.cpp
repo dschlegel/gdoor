@@ -33,6 +33,7 @@ namespace GDOOR {
     * Needed for the decoding logic.
     */
     void loop() {
+        GDOOR_TX::loop();
         GDOOR_RX::loop();
     }
 

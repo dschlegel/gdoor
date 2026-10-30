@@ -62,9 +62,7 @@ size_t MQTT_PRINTER::write(uint8_t byte) {
 */
 char* MQTT_PRINTER::read() {
     JSONDEBUG("MQTT_PRINTER read()");
-    if(this->index < BUFFER_SIZE && this->index > 0) {
-        this->buffer[index] = '\0'; //just to be sure
-    }
+    this->buffer[index] = '\0'; // index <= BUFFER_SIZE, buffer has BUFFER_SIZE + 1 bytes
     this->index = 0;
     return this->buffer;
 }
@@ -156,7 +154,7 @@ R"""(
         mac_clean.replace(":", "_");
 
         availability_topic = "homeassistant/sensor/gdoor/data/config/"+mac_clean;
-        mqttClient.setWill(availability_topic.c_str(), "offline");
+        mqttClient.setWill(availability_topic.c_str(), "offline", true, 0);
     }
    
 
@@ -167,6 +165,9 @@ R"""(
     void on_message_received(String &topic, String &payload) {
         if(topic == "homeassistant/status" && payload == "online") {
             ha_online = true;
+        }
+        if(topic != rx_topic_name) {
+            return; // Only data from the bus tx topic is meant to be sent to the bus
         }
         new_string_available = true;
         received_mqtt_payload = payload;
@@ -193,6 +194,7 @@ R"""(
     void setup(const char* server, int port, const char* username, const char* pw, const char* rx_topic, const char* tx_topic) {
         WiFi.onEvent(on_wifi_active, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
         
+        net.setConnectionTimeout(MQTT_CONNECT_TIMEOUT);
         mqttClient.begin(server, port, net);
         mqttClient.onMessage(on_message_received);
         rx_topic_name = rx_topic;
@@ -206,9 +208,14 @@ R"""(
      * needs to be executed in main loop().
     */
     void loop() {
-        static uint16_t counter = 0;
+        static unsigned long last_connect_attempt = 0;
+        static unsigned long last_availability = 0;
+        static bool first_attempt = true;
         if(WiFi.getMode() == WIFI_MODE_STA && WiFi.status() == WL_CONNECTED) {
-            if (newly_connected) {
+            // Connecting blocks the main loop, so do not retry on every loop() if the broker is unreachable
+            if (newly_connected && (first_attempt || millis() - last_connect_attempt >= MQTT_RECONNECT_INTERVAL)) {
+                first_attempt = false;
+                last_connect_attempt = millis();
                 JSONDEBUG("Newly connected WIFI detected in MQTT loop");
                 setWill();
                 if (mqttClient.connect("GDoor", user, password)) {
@@ -220,18 +227,20 @@ R"""(
 
                     newly_connected = false;
                     new_connection_established = true;
-                    counter = 0;
+                    last_availability = millis() - MQTT_AVAILABILITY_INTERVAL; // Send availability right away
                 }
             }
 
             mqttClient.loop();
             if (!mqttClient.connected()) {
-                JSONDEBUG("MQTT lost connection");
+                if (!newly_connected) {
+                    JSONDEBUG("MQTT lost connection");
+                }
                 newly_connected = true;
             } else {
-                // Send every 2^16 a availability message
-                if (! counter && !newly_connected ) {
-                    mqttClient.publish(availability_topic, "online");
+                if (millis() - last_availability >= MQTT_AVAILABILITY_INTERVAL) {
+                    last_availability = millis();
+                    mqttClient.publish(availability_topic, "online", true, 0);
                 }
 
                 // Indicate a new connection if HA gets online,
@@ -242,7 +251,6 @@ R"""(
                     new_connection_established = true;
                 }
             }
-            counter = counter + 1;
         }
     }
 

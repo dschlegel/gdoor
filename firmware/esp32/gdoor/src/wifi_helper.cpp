@@ -67,7 +67,8 @@ public:
     */
     void setValue(const char *defaultValue, int length) {
         if(length <= _length ){
-            memcpy(_value, defaultValue, length);  
+            strncpy(_value, defaultValue, length);
+            _value[length] = '\0';
         }
     }
 
@@ -90,6 +91,7 @@ public:
             selectvalues.push_back((values[i]));
         }
         _value  = new char[maxlen + 1];
+        memset(_value, 0, maxlen + 1); // Empty until a value is loaded, getters fall back to defaults
         _length = maxlen;
     }
 
@@ -290,11 +292,11 @@ namespace WIFI_HELPER { //Namespace as we can only use it once
             }
 
             if (read_config_file("/custom_mqtt_topic_bus_rx", &filevalue) && filevalue.length() > 0) {
-                custom_mqtt_topic_bus_rx.setValue(filevalue.c_str(), 20);
+                custom_mqtt_topic_bus_rx.setValue(filevalue.c_str(), 40);
             }
 
             if (read_config_file("/custom_mqtt_topic_bus_tx", &filevalue) && filevalue.length() > 0) {
-                custom_mqtt_topic_bus_tx.setValue(filevalue.c_str(), 20);
+                custom_mqtt_topic_bus_tx.setValue(filevalue.c_str(), 40);
             }
 
             if (read_config_file("/custom_debug", &filevalue) && filevalue.length() > 0 ) {
@@ -347,8 +349,46 @@ namespace WIFI_HELPER { //Namespace as we can only use it once
         wifiManager.startWebPortal();
     }
 
+    /**
+     * Internal function which retries the saved WiFi connection,
+     * e.g. when the WiFi was not available during boot or dropped out.
+     * If the fallback hotspot is active, it is closed
+     * as soon as the saved WiFi is connected again.
+    */
+    void reconnect() {
+        static unsigned long last_attempt = 0;
+
+        if (WiFi.status() == WL_CONNECTED) {
+            if (wifiManager.getConfigPortalActive()) {
+                JSONDEBUG("WiFi connected again, closing hotspot");
+                wifiManager.stopConfigPortal();
+                wifiManager.startWebPortal();
+            }
+            return;
+        }
+
+        if (millis() - last_attempt < WIFI_RECONNECT_INTERVAL) {
+            return;
+        }
+        last_attempt = millis();
+
+        if (!wifiManager.getWiFiIsSaved()) {
+            return; // Nothing to reconnect to, user has to configure via hotspot
+        }
+
+        if (wifiManager.getConfigPortalActive()) {
+            if (WiFi.softAPgetStationNum() > 0) {
+                return; // Do not disturb a user who is currently configuring via hotspot
+            }
+            WiFi.mode(WIFI_AP_STA); // Hotspot disabled STA, keep hotspot running while trying
+        }
+        JSONDEBUG("Trying to reconnect to saved WiFi");
+        WiFi.begin();
+    }
+
     void loop() {
         wifiManager.process();
+        reconnect();
 
         if (shouldSaveConfig) {
             shouldSaveConfig = false;

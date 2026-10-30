@@ -46,12 +46,16 @@
 // WIFI
 #define DEFAULT_WIFI_SSID     "GDoor"
 #define DEFAULT_WIFI_PASSWORD "12345678"
+#define WIFI_RECONNECT_INTERVAL 60000 // ms between reconnect attempts to the saved WiFi
 
 // MQTT
 #define DEFAULT_MQTT_SERVER   "0.0.0.0" 
 #define DEFAULT_MQTT_PORT     "1883" 
 #define DEFAULT_MQTT_TOPIC_BUS_RX "gdoor/bus_rx"
 #define DEFAULT_MQTT_TOPIC_BUS_TX "gdoor/bus_tx"
+#define MQTT_RECONNECT_INTERVAL 5000 // ms between connection attempts to an unreachable broker
+#define MQTT_CONNECT_TIMEOUT 1000 // ms TCP connect timeout, blocks the main loop while connecting
+#define MQTT_AVAILABILITY_INTERVAL 60000 // ms between availability (online) messages
 
 // Settings
 

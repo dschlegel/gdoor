@@ -23,14 +23,14 @@
 namespace GDOOR_RX {
 
     uint16_t counts[MAX_WORDLEN*9]; // Received counter values of bitstream, buffer
-    uint16_t isr_cnt = 0; // Interrupt Counter (Counting RX edges)  
+    volatile uint16_t isr_cnt = 0; // Interrupt Counter (Counting RX edges)  
 
     uint8_t words[MAX_WORDLEN]; //Received words buffer
     uint16_t raw[MAX_WORDLEN*9]; // Received raw counter values of bitstream
 
-    uint16_t rx_state = 0; // State Machine
+    volatile uint16_t rx_state = 0; // State Machine
 
-    uint8_t bitcounter = 0; //Current bit index, in currently active bitstream
+    volatile uint8_t bitcounter = 0; //Current bit index, in currently active bitstream
 
     GDOOR_DATA retval;
 
@@ -57,7 +57,7 @@ namespace GDOOR_RX {
     * so we should read out how many pulses we got for this bit (to decide 1 or 0)
     */
     void ARDUINO_ISR_ATTR isr_timer_bit_received() {
-        if (bitcounter > MAX_WORDLEN*9) {
+        if (bitcounter >= MAX_WORDLEN*9) {
             bitcounter = 0;
         }
         counts[bitcounter] = isr_cnt;

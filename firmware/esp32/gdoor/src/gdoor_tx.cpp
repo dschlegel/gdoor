@@ -20,7 +20,8 @@
 #include "gdoor_utils.h"
 
 namespace GDOOR_TX {
-    uint16_t tx_state = 0;
+    volatile uint16_t tx_state = 0;
+    volatile bool rx_enable_pending = false; // RX is re-enabled in loop(), attachInterrupt() is not ISR safe
     uint16_t tx_words[MAX_WORDLEN];
     uint8_t tx_strbuffer[MAX_WORDLEN*2];
     uint16_t bits_len = 0;
@@ -66,6 +67,7 @@ namespace GDOOR_TX {
         //Workaround: Disable comparator to not be disturbed by receive.
         //Better sending scheme is needed
         GDOOR_RX::disable();
+        rx_enable_pending = false;
 
         //TX Enable Pin high
         digitalWrite(pin_tx_en, HIGH);
@@ -88,7 +90,7 @@ namespace GDOOR_TX {
         tx_state &= (uint16_t)~STATE_SENDING;
         //Workaround: Enable comparator after sending
         //Better sending scheme is needed
-        GDOOR_RX::enable();
+        rx_enable_pending = true;
     }
 
 
@@ -165,6 +167,17 @@ namespace GDOOR_TX {
         stop_timer();
         bits_len = 0;
         tx_state = 0;
+    }
+
+    /*
+    * Function called by user, in main loop.
+    * Re-enables RX after sending, outside of the timer interrupt.
+    */
+    void loop() {
+        if (rx_enable_pending) {
+            rx_enable_pending = false;
+            GDOOR_RX::enable();
+        }
     }
 
     /*
